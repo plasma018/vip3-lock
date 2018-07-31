@@ -108,14 +108,13 @@ exports.deleteItem = function (mutexKey, mutexHandle) {
             }
         }, function (err, data) {
             if (err) {
+                console.error("Unable to delete item. Error JSON:", JSON.stringify(err, null, 2));
                 reject(err);
             } else {
                 console.log("DeleteItem succeeded:", JSON.stringify(data, null, 2));
                 resolve();
             }
         });
-    }).catch((err) => {
-        console.error("Unable to delete item. Error JSON:", JSON.stringify(err, null, 2));
     });
 };
 
@@ -140,7 +139,7 @@ exports.updateItemttl = function (mutexKey, mutexHandle, ttl) {
         }, function (err, data) {
             if (err) {
                 console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err)
+                reject(err);
             } else {
                 console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2));
                 resolve(data["Attributes"])

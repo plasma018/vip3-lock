@@ -12,9 +12,6 @@ const uuid = require('uuid')
  **/
 exports.extendMutex = function (mutexKey, mutexHandle, mutex) {
   return lock_db.updateItemttl(mutexKey, mutexHandle, mutex["ttl"]).then((data) => {
-    if (!data) {
-      return
-    }
     var examples = {};
     examples['application/json'] = {
       "handle": data["mutexHandle"],
@@ -38,9 +35,6 @@ exports.lockMutex = function (mutexKey, ttl) {
   const mutexHandle = uuid.v4();
   const expiry = Date.now() / 1000 + (ttl["ttl"] || 60);
   return lock_db.createItem(mutexKey, mutexHandle, expiry).then((data) => {
-    if (!data) {
-      return
-    }
     var examples = {};
     examples['application/json'] = {
       "handle": mutexHandle,
@@ -61,9 +55,6 @@ exports.lockMutex = function (mutexKey, ttl) {
  **/
 exports.queryMutex = function (mutexKey) {
   return lock_db.readItem(mutexKey).then((data) => {
-    if (!data) {
-      return
-    }
     var examples = {};
     examples['application/json'] = {
       "id": mutexKey,

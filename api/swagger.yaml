@@ -1,9 +1,9 @@
 ---
 swagger: "2.0"
 info:
-  description: "A semaphore API for Distributed locks"
+  description: "semaphore API and mutex API for Distributed locks"
   version: "1.0.0"
-  title: "Semaphore API"
+  title: "Distributed locks API"
 host: "localhost:8080"
 basePath: "/v1"
 tags:
@@ -13,7 +13,7 @@ schemes:
 - "http"
 paths:
   /semaphore/{semaphoreKey}:
-    get:
+    put:
       tags:
       - "Semaphore"
       summary: "Create a semaphore."
@@ -31,7 +31,7 @@ paths:
       - in: "body"
         name: "capacity"
         description: "number of permits"
-        required: true
+        required: false
         schema:
           $ref: "#/definitions/capacity"
       responses:
@@ -39,6 +39,8 @@ paths:
           description: "semaphore status"
           schema:
             $ref: "#/definitions/Semaphore"
+        409:
+          description: "lock in use"
       x-swagger-router-controller: "Semaphore"
   /semaphore/{semaphoreKey}/{semaphoreHandle}:
     get:
@@ -67,8 +69,69 @@ paths:
           description: "semaphore status"
           schema:
             $ref: "#/definitions/Semaphore"
+        400:
+          description: "Invalid ID supplied"
       x-swagger-router-controller: "Semaphore"
-    post:
+    delete:
+      tags:
+      - "Semaphore"
+      summary: "delete semaphore"
+      description: "delete semaphore"
+      operationId: "deleteSemaphore"
+      parameters:
+      - name: "semaphoreKey"
+        in: "path"
+        description: "semaphore identifier"
+        required: true
+        type: "string"
+        pattern: "^[a-zA-Z0-9\\-_]+$"
+      - name: "semaphoreHandle"
+        in: "path"
+        description: "check semaphore owner"
+        required: true
+        type: "string"
+        pattern: "^[a-zA-Z0-9\\-_]+$"
+      responses:
+        200:
+          description: "OK"
+        400:
+          description: "Invalid ID supplied"
+      x-swagger-router-controller: "Semaphore"
+    patch:
+      tags:
+      - "Semaphore"
+      summary: "update ttl"
+      description: "update ttl"
+      operationId: "extendttl"
+      parameters:
+      - name: "semaphoreKey"
+        in: "path"
+        description: "semaphore identifier"
+        required: true
+        type: "string"
+        pattern: "^[a-zA-Z0-9\\-_]+$"
+      - name: "semaphoreHandle"
+        in: "path"
+        description: "check semaphore owner"
+        required: true
+        type: "string"
+        pattern: "^[a-zA-Z0-9\\-_]+$"
+      - in: "body"
+        name: "ttl"
+        description: "update ttl"
+        required: true
+        schema:
+          $ref: "#/definitions/ttl"
+      responses:
+        200:
+          description: "semaphore status"
+          schema:
+            $ref: "#/definitions/Semaphore"
+        400:
+          description: "Invalid ID supplied"
+      x-swagger-router-controller: "Semaphore"
+  /semaphore/acquires/{semaphoreKey}/{semaphoreHandle}/:
+    patch:
       tags:
       - "Semaphore"
       summary: "Acquires a permit from this semaphore"
@@ -95,8 +158,11 @@ paths:
           description: "semaphore status"
           schema:
             $ref: "#/definitions/Semaphore"
+        400:
+          description: "Bad Request"
       x-swagger-router-controller: "Semaphore"
-    put:
+  /semaphore/releases/{semaphoreKey}/{semaphoreHandle}/:
+    patch:
       tags:
       - "Semaphore"
       summary: "releases a permit, returning it to the semaphore."
@@ -123,60 +189,8 @@ paths:
           description: "semaphore status"
           schema:
             $ref: "#/definitions/Semaphore"
-      x-swagger-router-controller: "Semaphore"
-    delete:
-      tags:
-      - "Semaphore"
-      summary: "delete semaphore"
-      description: "delete semaphore"
-      operationId: "deleteSemaphore"
-      parameters:
-      - name: "semaphoreKey"
-        in: "path"
-        description: "semaphore identifier"
-        required: true
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
-      - name: "semaphoreHandle"
-        in: "path"
-        description: "check semaphore owner"
-        required: true
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
-      responses:
-        200:
-          description: "OK"
-      x-swagger-router-controller: "Semaphore"
-    patch:
-      tags:
-      - "Semaphore"
-      summary: "update ttl"
-      description: "update ttl"
-      operationId: "extendttl"
-      parameters:
-      - name: "semaphoreKey"
-        in: "path"
-        description: "semaphore identifier"
-        required: true
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
-      - name: "semaphoreHandle"
-        in: "path"
-        description: "check semaphore owner"
-        required: true
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
-      - in: "body"
-        name: "ttl"
-        description: "update ttl"
-        required: true
-        schema:
-          $ref: "#/definitions/ttl_1"
-      responses:
-        200:
-          description: "semaphore status"
-          schema:
-            $ref: "#/definitions/Semaphore"
+        400:
+          description: "Bad Request"
       x-swagger-router-controller: "Semaphore"
   /mutex/{mutexKey}:
     get:
@@ -225,8 +239,6 @@ paths:
             $ref: "#/definitions/Mutex"
         409:
           description: "lock in use"
-          schema:
-            $ref: "#/definitions/Mutex"
       x-swagger-router-controller: "Mutex"
   /mutex/{mutexKey}/{mutexHandle}:
     delete:
@@ -254,6 +266,8 @@ paths:
           description: "successful operation"
           schema:
             $ref: "#/definitions/Mutex"
+        400:
+          description: "Invalid ID Supplied"
       x-swagger-router-controller: "Mutex"
     patch:
       tags:
@@ -283,9 +297,7 @@ paths:
           schema:
             $ref: "#/definitions/Mutex"
         400:
-          description: "handle mismach"
-        410:
-          description: "Wrong / expired handle"
+          description: "Invalid ID Supplied"
       x-swagger-router-controller: "Mutex"
 definitions:
   Semaphore:
@@ -356,10 +368,3 @@ definitions:
         type: "integer"
         minimum: 1
         maximum: 10
-  ttl_1:
-    type: "object"
-    properties:
-      ttl:
-        type: "integer"
-        minimum: 1
-        maximum: 3600

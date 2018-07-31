@@ -64,8 +64,6 @@ exports.createItem = function (semaphoreKey, semaphoreHandle, capacity, expiry) 
                 resolve(data);
             }
         });
-    }).catch((err) => {
-        console.log("err: ", err);
     });
 };
 
@@ -98,12 +96,10 @@ exports.updateItem = function (semaphoreKey, semaphoreHandle, op) {
                 resolve(data["Attributes"])
             }
         })
-    }).catch((err) => {
-        console.log("err: ", err);
-    });
+    })
 }
 
-exports.readItem = function (semaphoreKey, semaphoreHandle) {
+exports.readItem = function readItem(semaphoreKey, semaphoreHandle) {
     return new Promise(function (resolve, reject) {
         docClient.get({
             TableName: table,
@@ -125,9 +121,7 @@ exports.readItem = function (semaphoreKey, semaphoreHandle) {
                 }
             }
         });
-    }).catch((err) => {
-        console.log("err: ", err);
-    });
+    })
 };
 
 exports.deleteItem = function (semaphoreKey, semaphoreHandle) {
@@ -153,13 +147,11 @@ exports.deleteItem = function (semaphoreKey, semaphoreHandle) {
                 resolve()
             }
         })
-    }).catch((err) => {
-
     })
 }
 
-exports.updateItemttl = function(semaphoreKey, semaphoreHandle, ttl){
-    return new Promise(function(resolve, reject){
+exports.updateItemttl = function (semaphoreKey, semaphoreHandle, ttl) {
+    return new Promise(function (resolve, reject) {
         docClient.update({
             TableName: table,
             Key: {
@@ -187,4 +179,3 @@ exports.updateItemttl = function(semaphoreKey, semaphoreHandle, ttl){
         })
     })
 }
-
