@@ -1,16 +1,24 @@
-const AWS = require("aws-sdk");
+const dynamodb = require('../config/config.js').dynamodb
+const docClient = require('../config/config.js').docClient
 
-AWS.config.update({
-    region: "local",
-    endpoint: "http://localhost:8000"
-});
-
-const docClient = new AWS.DynamoDB.DocumentClient();
 const table = "lock_db_semaphore";
 
-function createTable() {
-    const dynamodb = new AWS.DynamoDB();
+initDB()
 
+function initDB() {
+    dynamodb.describeTable({
+        TableName: table
+    }, function (err, data) {
+        if (err && err.code === 'ResourceNotFoundException') {
+            console.log('creating', table, ' table...');
+            createTable()
+        } else {
+            console.log(table, 'created');
+        }
+    })
+}
+
+function createTable() {
     var params = {
         TableName: table,
         KeySchema: [{
@@ -105,7 +113,8 @@ exports.readItem = function readItem(semaphoreKey, semaphoreHandle) {
             TableName: table,
             Key: {
                 "semaphoreKey": semaphoreKey
-            }
+            },
+            ConsistentRead: true
         }, function (err, data) {
             if (err) {
                 console.error("Unable to read item. Error JSON:", JSON.stringify(err, null, 2));

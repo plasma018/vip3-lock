@@ -1,16 +1,24 @@
-const AWS = require("aws-sdk");
+const dynamodb = require('../config/config.js').dynamodb
+const docClient = require('../config/config.js').docClient
 
-AWS.config.update({
-    region: "local",
-    endpoint: "http://localhost:8000"
-});
-
-const docClient = new AWS.DynamoDB.DocumentClient();
 const table = "lock_db_mutex";
 
-function createTable() {
-    const dynamodb = new AWS.DynamoDB();
+initDB()
 
+function initDB() {
+    dynamodb.describeTable({
+        TableName: table
+    }, function (err, data) {
+        if (err && err.code === 'ResourceNotFoundException') {
+            console.log('creating', table, ' table...');
+            createTable()
+        }else{
+            console.log(table, 'created');
+        }
+    })
+}
+
+function createTable() {
     var params = {
         TableName: table,
         KeySchema: [{
@@ -43,7 +51,8 @@ exports.readItem = function (mutexKey) {
             TableName: table,
             Key: {
                 "mutexKey": mutexKey
-            }
+            },
+            ConsistentRead: true
         }, function (err, data) {
             if (err) {
                 console.error("Unable to read item. Error JSON:", JSON.stringify(err, null, 2));
@@ -52,8 +61,8 @@ exports.readItem = function (mutexKey) {
                 console.log("GetItem succeeded:", JSON.stringify(data));
                 if (data["Item"] === undefined) {
                     reject(new Error("mutexKey is not exist!!"));
-                // } else if (data["Item"]["mutexHandle"] !== mutexHandle) {
-                //     reject(new Error("mutexHandle isn't same"));
+                    // } else if (data["Item"]["mutexHandle"] !== mutexHandle) {
+                    //     reject(new Error("mutexHandle isn't same"));
                 } else {
                     resolve(data["Item"]);
                 }
@@ -169,10 +178,12 @@ exports.updateItem = function (mutexKey, mutexHandle, locked) {
         }, function (err, data) {
             if (err) {
                 console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2));
-                if(!locked){
+                if (!locked) {
                     reject()
                 }
-                reject({status:"lock in use"})
+                reject({
+                    status: "lock in use"
+                })
             } else {
                 console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2));
                 resolve(data["Attributes"])
@@ -180,5 +191,3 @@ exports.updateItem = function (mutexKey, mutexHandle, locked) {
         })
     })
 }
-
-

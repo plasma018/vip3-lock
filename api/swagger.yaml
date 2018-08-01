@@ -288,7 +288,7 @@ paths:
         pattern: "^[a-zA-Z0-9\\-_]+$"
       - in: "body"
         name: "mutex"
-        required: false
+        required: true
         schema:
           $ref: "#/definitions/ttl"
       responses:
