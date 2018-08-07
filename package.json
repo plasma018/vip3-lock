@@ -6,7 +6,8 @@
   "scripts": {
     "prestart": "npm install",
     "start": "export NODE_ENV=dev && node index.js",
-    "deploy": "export NODE_ENV=production && node index.js"
+    "deploy": "export NODE_ENV=production && node index.js",
+    "test": "mocha"
   },
   "keywords": [
     "swagger"
