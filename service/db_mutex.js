@@ -1,49 +1,11 @@
-const dynamodb = require('../config/config.js').dynamodb
 const docClient = require('../config/config.js').docClient
 
 const table = "lock_db_mutex";
 
-initDB()
-
-function initDB() {
-    dynamodb.describeTable({
-        TableName: table
-    }, function (err, data) {
-        if (err && err.code === 'ResourceNotFoundException') {
-            console.log('creating', table, ' table...');
-            createTable()
-        }else{
-            console.log(table, 'created');
-        }
-    })
-}
-
-function createTable() {
-    var params = {
-        TableName: table,
-        KeySchema: [{
-                AttributeName: "mutexKey",
-                KeyType: "HASH"
-            }, //Partition key
-        ],
-        AttributeDefinitions: [{
-            AttributeName: "mutexKey",
-            AttributeType: "S"
-        }, ],
-        ProvisionedThroughput: {
-            ReadCapacityUnits: 10,
-            WriteCapacityUnits: 10
-        }
-    };
-
-    dynamodb.createTable(params, function (err, data) {
-        if (err) {
-            console.error("Unable to create table. Error JSON:", JSON.stringify(err, null, 2));
-        } else {
-            console.log("Created table. Table description JSON:", JSON.stringify(data, null, 2));
-        }
-    });
-}
+require('./helper_ddb').ensureTable({
+    tableName: table,
+    hashKey: 'mutexKey',
+})
 
 exports.readItem = function (mutexKey) {
     return new Promise(function (resolve, reject) {
