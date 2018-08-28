@@ -1,4 +1,6 @@
-const docClient = require('../config/config.js').docClient
+const {
+    docClient
+} = require('../config/config.js')
 
 const table = "lock_db_mutex";
 
@@ -7,149 +9,95 @@ require('./helper_ddb').ensureTable({
     hashKey: 'mutexKey',
 })
 
-exports.readItem = function (mutexKey) {
-    return new Promise(function (resolve, reject) {
-        docClient.get({
-            TableName: table,
-            Key: {
-                "mutexKey": mutexKey
-            },
-            ConsistentRead: true
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to read item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err);
-            } else {
-                console.log("GetItem succeeded:", JSON.stringify(data));
-                if (data["Item"] === undefined) {
-                    reject(new Error("mutexKey is not exist!!"));
-                    // } else if (data["Item"]["mutexHandle"] !== mutexHandle) {
-                    //     reject(new Error("mutexHandle isn't same"));
-                } else {
-                    resolve(data["Item"]);
-                }
-            }
-        });
-    });
-};
-
-
-exports.createItem = function (mutexKey, mutexHandle, expiry) {
-    return new Promise(function (resolve, reject) {
-        docClient.put({
-            TableName: table,
-            Item: {
-                "mutexKey": mutexKey,
-                "mutexHandle": mutexHandle,
-                "expiry": expiry,
-                "locked": true
-            },
-            ConditionExpression: "attribute_not_exists(mutexKey) OR #expiry < :expiry",
-            ExpressionAttributeNames: {
-                "#expiry": "expiry"
-            },
-            ExpressionAttributeValues: {
-                ":expiry": Date.now() / 1000
-            }
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to add item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err);
-            } else {
-                console.log("Added item:", JSON.stringify(data, null, 2));
-                resolve(data);
-            }
-        });
+function readItem(mutexKey) {
+    return docClient.get({
+        TableName: table,
+        Key: {
+            "mutexKey": mutexKey
+        },
+        ConsistentRead: true
+    }).promise().then(data => {
+        console.log("GetItem succeeded:", JSON.stringify(data));
+        if (data["Item"] === undefined) {
+            throw new Error("mutexKey is not exist!!");
+        } else {
+            return data["Item"];
+        }
+    }).catch(err => {
+        console.error("Unable to read item. Error JSON:", JSON.stringify(err, null, 2))
+        throw new Error(err)
     })
 };
 
-exports.deleteItem = function (mutexKey, mutexHandle) {
-    return new Promise(function (resolve, reject) {
-        docClient.delete({
-            TableName: table,
-            Key: {
-                "mutexKey": mutexKey,
-            },
-            ConditionExpression: "#m = :m",
-            ExpressionAttributeNames: {
-                "#m": "mutexHandle"
-            },
-            ExpressionAttributeValues: {
-                ":m": mutexHandle
-            }
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to delete item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err);
-            } else {
-                console.log("DeleteItem succeeded:", JSON.stringify(data, null, 2));
-                resolve();
-            }
-        });
-    });
+function createItem(mutexKey, mutexHandle, expiry) {
+    return docClient.put({
+        TableName: table,
+        Item: {
+            "mutexKey": mutexKey,
+            "mutexHandle": mutexHandle,
+            "expiry": expiry
+        },
+        ConditionExpression: "attribute_not_exists(mutexKey) OR #expiry < :expiry",
+        ExpressionAttributeNames: {
+            "#expiry": "expiry"
+        },
+        ExpressionAttributeValues: {
+            ":expiry": Date.now() / 1000
+        }
+    }).promise().then(data => console.log("Added item:", JSON.stringify(data, null, 2)) || data).catch(err => {
+        console.error("Unable to add item. Error JSON:", JSON.stringify(err, null, 2))
+        throw new Error(err)
+    })
 };
 
-exports.updateItemttl = function (mutexKey, mutexHandle, ttl) {
-    return new Promise(function (resolve, reject) {
-        docClient.update({
-            TableName: table,
-            Key: {
-                "mutexKey": mutexKey
-            },
-            UpdateExpression: "set #expiry = #expiry + :ttl",
-            ConditionExpression: "#m = :m",
-            ExpressionAttributeNames: {
-                "#expiry": "expiry",
-                "#m": "mutexHandle"
-            },
-            ExpressionAttributeValues: {
-                ":ttl": ttl,
-                ":m": mutexHandle
-            },
-            ReturnValues: "ALL_NEW"
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err);
-            } else {
-                console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2));
-                resolve(data["Attributes"])
-            }
-        })
+function deleteItem(mutexKey, mutexHandle) {
+    return docClient.delete({
+        TableName: table,
+        Key: {
+            "mutexKey": mutexKey,
+        },
+        ConditionExpression: "#m = :m",
+        ExpressionAttributeNames: {
+            "#m": "mutexHandle"
+        },
+        ExpressionAttributeValues: {
+            ":m": mutexHandle
+        }
+    }).promise().then(data => console.log("DeleteItem succeeded:", JSON.stringify(data, null, 2)) || {
+        statusCode: 200,
+        msg: data
+    }).catch(err => {
+        console.error("Unable to delete item. Error JSON:", JSON.stringify(err, null, 2))
+        throw new Error(err)
+    })
+};
+
+function updateItemttl(mutexKey, mutexHandle, ttl) {
+    return docClient.update({
+        TableName: table,
+        Key: {
+            "mutexKey": mutexKey
+        },
+        UpdateExpression: "set #expiry = #expiry + :ttl",
+        ConditionExpression: "#m = :m",
+        ExpressionAttributeNames: {
+            "#expiry": "expiry",
+            "#m": "mutexHandle"
+        },
+        ExpressionAttributeValues: {
+            ":ttl": ttl,
+            ":m": mutexHandle
+        },
+        ReturnValues: "ALL_NEW"
+    }).promise().then(data => console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2)) || data["Attributes"]).catch(err => {
+        console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2))
+        throw new Error(err)
     })
 }
 
-exports.updateItem = function (mutexKey, mutexHandle, locked) {
-    return new Promise(function (resolve, reject) {
-        docClient.update({
-            TableName: table,
-            Key: {
-                "mutexKey": mutexKey
-            },
-            UpdateExpression: "set #l = :l",
-            ConditionExpression: "#m = :m AND #l <> :l",
-            ExpressionAttributeNames: {
-                "#m": "mutexHandle",
-                "#l": "locked"
-            },
-            ExpressionAttributeValues: {
-                ":m": mutexHandle,
-                ":l": locked
-            },
-            ReturnValues: "ALL_NEW"
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2));
-                if (!locked) {
-                    reject()
-                }
-                reject({
-                    status: "lock in use"
-                })
-            } else {
-                console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2));
-                resolve(data["Attributes"])
-            }
-        })
-    })
+module.exports = {
+    readItem,
+    createItem,
+    deleteItem,
+    updateItemttl
 }
