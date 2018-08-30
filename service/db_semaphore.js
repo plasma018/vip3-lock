@@ -1,190 +1,236 @@
-const dynamodb = require('../config/config.js').dynamodb
-const docClient = require('../config/config.js').docClient
+const {
+    docClient
+} = require('../config/config.js')
 
 const table = "lock_db_semaphore";
 
-initDB()
+require('./helper_ddb').ensureTable({
+    tableName: table,
+    hashKey: 'semaphoreKey',
+})
 
-function initDB() {
-    dynamodb.describeTable({
-        TableName: table
-    }, function (err, data) {
-        if (err && err.code === 'ResourceNotFoundException') {
-            console.log('creating', table, ' table...');
-            createTable()
-        } else {
-            console.log(table, 'created');
-        }
-    })
+/**
+ * find oldest and latest handler
+ * @param handlers list
+ */
+function getHandler(handlers) {
+    let array = Object.entries(handlers).sort((item1, item2) => item1[1] > item2[1])
+    return {
+        oldest: array[0],
+        latest: array[array.length - 1]
+    }
 }
 
-function createTable() {
-    var params = {
+/**
+ * Create Semaphore 
+ * 
+ * @param  semaphoreKey string
+ * @param  seat integer
+ */
+function createSemaphore(semaphoreKey, seat) {
+    return docClient.put({
         TableName: table,
-        KeySchema: [{
-                AttributeName: "semaphoreKey",
-                KeyType: "HASH"
-            }, //Partition key
-        ],
-        AttributeDefinitions: [{
-            AttributeName: "semaphoreKey",
-            AttributeType: "S"
-        }, ],
-        ProvisionedThroughput: {
-            ReadCapacityUnits: 10,
-            WriteCapacityUnits: 10
-        }
-    };
-
-    dynamodb.createTable(params, function (err, data) {
-        if (err) {
-            console.error("Unable to create table. Error JSON:", JSON.stringify(err, null, 2));
-        } else {
-            console.log("Created table. Table description JSON:", JSON.stringify(data, null, 2));
-        }
-    });
-}
-
-exports.createItem = function (semaphoreKey, semaphoreHandle, capacity, expiry) {
-    return new Promise(function (resolve, reject) {
-        docClient.put({
-            TableName: table,
-            Item: {
-                "semaphoreKey": semaphoreKey,
-                "semaphoreHandle": semaphoreHandle,
-                "capacity": capacity,
-                "count": 0,
-                "expiry": expiry
-            },
-            ConditionExpression: "attribute_not_exists(semaphoreKey) OR #expiry < :expiry",
-            ExpressionAttributeNames: {
-                "#expiry": "expiry"
-            },
-            ExpressionAttributeValues: {
-                ":expiry": Date.now() / 1000
-            }
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to add item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err);
-            } else {
-                console.log("Added item:", JSON.stringify(data, null, 2));
-                resolve(data);
-            }
-        });
-    });
+        Item: {
+            "semaphoreKey": semaphoreKey,
+            "seat": seat,
+            "version": 0,
+            "occupied": 0,
+            "handlers": {}
+        },
+        ConditionExpression: "attribute_not_exists(semaphoreKey)",
+    }).promise()
 };
-
-exports.updateItem = function (semaphoreKey, semaphoreHandle, op) {
-    return new Promise(function (resolve, reject) {
-        docClient.update({
-            TableName: table,
-            Key: {
-                "semaphoreKey": semaphoreKey
-            },
-            UpdateExpression: "set #c = #c + :incr",
-            ConditionExpression: "((:incr > :n AND #c < #cap) OR (:incr < :n  AND #c > :n )) AND #s = :s",
-            ExpressionAttributeNames: {
-                "#c": "count",
-                "#s": "semaphoreHandle",
-                "#cap": "capacity"
-            },
-            ExpressionAttributeValues: {
-                ":incr": op,
-                ":s": semaphoreHandle,
-                ":n": 0
-            },
-            ReturnValues: "ALL_NEW"
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err)
-            } else {
-                console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2));
-                resolve(data["Attributes"])
-            }
-        })
-    })
+/**
+ * Query Semaphore status
+ * @param semaphoreKey string
+ */
+function querySemaphore(semaphoreKey) {
+    return docClient.get({
+        TableName: table,
+        Key: {
+            "semaphoreKey": semaphoreKey
+        },
+        ConsistentRead: true
+    }).promise()
 }
-
-exports.readItem = function readItem(semaphoreKey, semaphoreHandle) {
-    return new Promise(function (resolve, reject) {
-        docClient.get({
-            TableName: table,
-            Key: {
-                "semaphoreKey": semaphoreKey
-            },
-            ConsistentRead: true
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to read item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err);
-            } else {
-                console.log("GetItem succeeded:", JSON.stringify(data));
-                if (data["Item"] === undefined) {
-                    reject(new Error("semaphoreKey is not exist!!"));
-                } else if (data["Item"]["semaphoreHandle"] !== semaphoreHandle) {
-                    reject(new Error("semaphoreHandle isn't same"));
-                } else {
-                    resolve(data["Item"]);
-                }
-            }
-        });
-    })
-};
-
-exports.deleteItem = function (semaphoreKey, semaphoreHandle) {
-    return new Promise(function (resolve, reject) {
-        docClient.delete({
+/**
+ * Delete Semaphore 
+ * @param semaphoreKey string
+ */
+function deleteSemaphore(semaphoreKey) {
+    return docClient.get({
+        TableName: table,
+        Key: {
+            "semaphoreKey": semaphoreKey
+        },
+        ConsistentRead: true
+    }).promise().then(({
+        //如果不存在key會拋出TypeError，當作刪除成功
+        Item: {
+            handlers,
+            version
+        }
+    }) => {
+        //確認handler全部過期 or 沒有handler 表示可以刪除
+        handlers['old_element'] = 0
+        if (Date.now() / 1000 < Math.max(...Object.values(handlers))) {
+            let error = new Error("someone in the seat");
+            error.code = "ConditionalCheckFailedException"
+            throw error;
+        }
+        // 刪除前確認有沒有人 新增handler or 延長 handler ttl
+        return docClient.delete({
             TableName: table,
             Key: {
                 "semaphoreKey": semaphoreKey,
             },
-            ConditionExpression: "#s = :s",
+            ConditionExpression: "#v = :v",
             ExpressionAttributeNames: {
-                "#s": "semaphoreHandle"
+                "#v": "version"
             },
             ExpressionAttributeValues: {
-                ":s": semaphoreHandle
+                ":v": version
             }
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to delete item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err)
-            } else {
-                console.log("DeleteItem succeeded:", JSON.stringify(data, null, 2));
-                resolve()
-            }
-        })
+        }).promise()
     })
 }
 
-exports.updateItemttl = function (semaphoreKey, semaphoreHandle, ttl) {
-    return new Promise(function (resolve, reject) {
-        docClient.update({
+/**
+ * 
+ * @param semaphoreKey string
+ * @param semaphoreHandle string
+ * @param ttl integer
+ */
+function updateItemttl(semaphoreKey, semaphoreHandle, ttl) {
+    return docClient.update({
+        TableName: table,
+        Key: {
+            "semaphoreKey": semaphoreKey
+        },
+        UpdateExpression: "set handlers.#id = handlers.#id + :ttl, #ver = #ver + :incr",
+        ConditionExpression: "attribute_exists(handlers.#id)",
+        ExpressionAttributeNames: {
+            "#id": semaphoreHandle,
+            "#ver": "version"
+        },
+        ExpressionAttributeValues: {
+            ":ttl": ttl,
+            ":incr": 1
+        },
+        ReturnValues: "UPDATED_NEW"
+    }).promise()
+}
+
+/**
+ * 
+ * @param semaphoreKey string
+ * @param semaphoreHandle string
+ * @param expiry float 
+ */
+function acquireSeat(semaphoreKey, semaphoreHandle, expiry) {
+    return docClient.get({
+        TableName: table,
+        Key: {
+            "semaphoreKey": semaphoreKey
+        },
+        ConsistentRead: true
+    }).promise().then(({
+        //如果不存在key會拋出TypeError
+        Item: {
+            seat,
+            occupied,
+            handlers
+        }
+    }) => {
+        
+        if (seat != occupied) {
+            return docClient.update({
+                TableName: table,
+                Key: {
+                    "semaphoreKey": semaphoreKey
+                },
+                UpdateExpression: "SET #occupied = #occupied + :incr, handlers.#id = :element, #ver = #ver + :incr",
+                ConditionExpression: "#seat > #occupied",
+                ExpressionAttributeNames: {
+                    "#occupied": "occupied",
+                    "#seat": "seat",
+                    "#id": semaphoreHandle,
+                    "#ver": "version"
+                },
+                ExpressionAttributeValues: {
+                    ":element": expiry,
+                    ":incr": 1
+                },
+                ReturnValues: "ALL_NEW"
+            }).promise()
+        }
+
+        // 檢查是否有handler過期
+        let now = Date.now() / 1000
+        let oldest = Object.entries(handlers).reduce((obj1, obj2) => {
+            if(obj1[1] > obj2[1]){
+                return obj2
+            }
+            return  obj1
+        })
+        
+        if (now < oldest[1]) {
+            let error = new Error('no seat available')
+            error.code = "NoSeatAvailable"
+            throw error
+        }
+
+        return docClient.update({
             TableName: table,
             Key: {
                 "semaphoreKey": semaphoreKey
             },
-            UpdateExpression: "set #expiry = #expiry + :ttl",
-            ConditionExpression: "#s = :s",
+            UpdateExpression: "REMOVE handlers.#oid SET handlers.#id = :element, #ver = #ver + :incr",
+            ConditionExpression: "handlers.#oid < :now",
             ExpressionAttributeNames: {
-                "#expiry": "expiry",
-                "#s": "semaphoreHandle"
+                "#id": semaphoreHandle,
+                "#oid": oldest[0],
+                "#ver": "version"
             },
             ExpressionAttributeValues: {
-                ":ttl": ttl,
-                ":s": semaphoreHandle,
+                ":element": expiry,
+                ":incr": 1,
+                ":now": now
             },
             ReturnValues: "ALL_NEW"
-        }, function (err, data) {
-            if (err) {
-                console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2));
-                reject(err)
-            } else {
-                console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2));
-                resolve(data["Attributes"])
-            }
-        })
+        }).promise()
     })
+}
+
+/**
+ * 
+ * @param semaphoreKey string
+ * @param semaphoreHandle string
+ */
+function releasesSeat(semaphoreKey, semaphoreHandle) {
+    return docClient.update({
+        TableName: table,
+        Key: {
+            "semaphoreKey": semaphoreKey
+        },
+        UpdateExpression: "REMOVE handlers.#id SET #occupied = #occupied - :incr",
+        ConditionExpression: "attribute_exists(handlers.#id)",
+        ExpressionAttributeNames: {
+            "#id": semaphoreHandle,
+            "#occupied": "occupied"
+        },
+        ExpressionAttributeValues: {
+            ":incr": 1
+        },
+        ReturnValues: "NONE"
+    }).promise()
+}
+
+module.exports = {
+    createSemaphore,
+    querySemaphore,
+    deleteSemaphore,
+    acquireSeat,
+    releasesSeat,
+    updateItemttl
 }

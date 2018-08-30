@@ -1,7 +1,8 @@
-'use strict';
 const lock_db = require('./db_semaphore.js')
 const uuid = require('uuid')
 
+const DEFAULT_SEAT = 5
+const DEFAULT_TTL = 60
 
 /**
  * Acquires a permit from this semaphore
@@ -11,17 +12,20 @@ const uuid = require('uuid')
  * semaphoreHandle String check semaphore owner
  * returns Semaphore
  **/
-module.exports.acquire = function (semaphoreKey, semaphoreHandle) {
-  return lock_db.updateItem(semaphoreKey, semaphoreHandle, 1).then((data) => {
-    var examples = {};
-    examples['application/json'] = {
-      "count": data["count"],
-      "handle": data["semaphoreHandle"],
-      "id": data["semaphoreKey"],
-      "expiry": data["expiry"],
-      "capacity": data["capacity"]
-    };
-    return examples[Object.keys(examples)[0]];
+function acquireSeat(semaphoreKey, ttl) {
+  const semaphoreHandle = uuid.v4();
+  let time = DEFAULT_TTL
+  if (parseInt(ttl, 10) === ttl) {
+    time = ttl
+  }
+  const expiry = Date.now() / 1000 + time;
+  return lock_db.acquireSeat(semaphoreKey, semaphoreHandle, expiry).then(_ => {
+    console.log(`Added item handler:${semaphoreKey} handler:${semaphoreHandle} expiry:${expiry} `);
+    return {
+      "id": semaphoreKey,
+      "handler": semaphoreHandle,
+      "expiry": expiry
+    }
   })
 }
 
@@ -34,18 +38,17 @@ module.exports.acquire = function (semaphoreKey, semaphoreHandle) {
  * semaphoreHandle String check semaphore owner
  * returns Semaphore
  **/
-module.exports.availablePermits = function (semaphoreKey, semaphoreHandle) {
-  return lock_db.readItem(semaphoreKey, semaphoreHandle).then((data) => {
-    var examples = {};
-    examples['application/json'] = {
-      "count": data["count"],
-      "handle": data["semaphoreHandle"],
-      "id": data["semaphoreKey"],
-      "expiry": data["expiry"],
-      "capacity": data["capacity"]
-    };
-    return examples[Object.keys(examples)[0]];
-  });
+function querySemaphore(semaphoreKey) {
+  return lock_db.querySemaphore(semaphoreKey).then(({
+    Item
+  }) => {
+    console.log("GetItem succeeded:", JSON.stringify(Item));
+    return {
+      "id": semaphoreKey,
+      "seat": Item["seat"],
+      "occupied": Item["occupied"]
+    }
+  })
 }
 
 
@@ -57,21 +60,18 @@ module.exports.availablePermits = function (semaphoreKey, semaphoreHandle) {
  * capacity Capacity number of permits
  * returns Semaphore
  **/
-module.exports.creatSemaphore = function (semaphoreKey, capacity) {
-  const semaphoreHandle = uuid.v4();
-  const expiry = Date.now() / 1000 + 60;
-  capacity = capacity["capacity"] || 5;
-  return lock_db.createItem(semaphoreKey, semaphoreHandle, capacity, expiry).then((data) => {
-    var examples = {};
-    examples['application/json'] = {
-      "count": 0,
-      "handle": semaphoreHandle,
+function creatSemaphore(semaphoreKey, capacity) {
+  let seat = DEFAULT_SEAT
+  if (capacity['seat'] === parseInt(capacity['seat'], 10)) {
+    seat = capacity["seat"]
+  }
+  return lock_db.createSemaphore(semaphoreKey, seat).then(_ => {
+    console.log(`Added item key:${semaphoreKey} seat:${seat} `);
+    return {
       "id": semaphoreKey,
-      "expiry": expiry,
-      "capacity": capacity
-    };
-    return examples[Object.keys(examples)[0]];
-  });
+      "seat": seat
+    }
+  })
 }
 
 
@@ -83,10 +83,11 @@ module.exports.creatSemaphore = function (semaphoreKey, capacity) {
  * semaphoreHandle String check semaphore owner
  * no response value expected for this operation
  **/
-module.exports.deleteSemaphore = function (semaphoreKey, semaphoreHandle) {
-  return lock_db.deleteItem(semaphoreKey, semaphoreHandle).then(() => {
-    return;
-  });
+function deleteSemaphore(semaphoreKey) {
+  return lock_db.deleteSemaphore(semaphoreKey).then(_ => {
+    console.log(`Delete item key: ${semaphoreKey}`);
+    return null;
+  })
 }
 
 
@@ -99,19 +100,23 @@ module.exports.deleteSemaphore = function (semaphoreKey, semaphoreHandle) {
  * ttl Ttl update ttl
  * returns Semaphore
  **/
-module.exports.extendttl = function (semaphoreKey, semaphoreHandle, ttl) {
-  return lock_db.updateItemttl(semaphoreKey, semaphoreHandle, ttl["ttl"]).then((data) => {
-    var examples = {};
-    examples['application/json'] = {
-      "count": data["count"],
-      "handle": data["semaphoreHandle"],
-      "id": data["semaphoreKey"],
-      "expiry": data["expiry"],
-      "capacity": data["capacity"]
-    };
-    return examples[Object.keys(examples)[0]];
-  });
-};
+function extendttl(semaphoreKey, semaphoreHandle, ttl) {
+  if (parseInt(ttl, 10) != ttl || (ttl < 1 || ttl > 3600)) {
+    throw new Error('ttl error')
+  }
+  return lock_db.updateItemttl(semaphoreKey, semaphoreHandle, ttl).then(({
+    Attributes: {
+      handlers
+    }
+  }) => {
+    console.log(`ExtendTTL Succeeded key: ${semaphoreKey} handler: ${semaphoreHandle} ttl: ${ttl} expiry: ${handlers[semaphoreHandle]}`);
+    return {
+      "id": semaphoreKey,
+      "handler": semaphoreHandle,
+      "expiry": handlers[semaphoreHandle]
+    }
+  })
+}
 
 
 /**
@@ -122,16 +127,18 @@ module.exports.extendttl = function (semaphoreKey, semaphoreHandle, ttl) {
  * semaphoreHandle String check semaphore owner
  * returns Semaphore
  **/
-module.exports.releases = function (semaphoreKey, semaphoreHandle) {
-  return lock_db.updateItem(semaphoreKey, semaphoreHandle, -1).then((data) => {
-    var examples = {};
-    examples['application/json'] = {
-      "count": data["count"],
-      "handle": data["semaphoreHandle"],
-      "id": data["semaphoreKey:"],
-      "expiry": data["expiry"],
-      "capacity": data["capacity"]
-    };
-    return examples[Object.keys(examples)[0]];
+function releasesSeat(semaphoreKey, semaphoreHandle) {
+  return lock_db.releasesSeat(semaphoreKey, semaphoreHandle).then(_ => {
+    console.log(`Delete Seat key: ${semaphoreKey} handler: ${semaphoreHandle}`);
+    return null;
   })
+}
+
+module.exports = {
+  acquireSeat,
+  querySemaphore,
+  creatSemaphore,
+  deleteSemaphore,
+  extendttl,
+  releasesSeat
 }

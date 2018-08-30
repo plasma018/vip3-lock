@@ -1,124 +1,141 @@
 'use strict';
 
-var utils = require('../utils/writer.js');
-var Semaphore = require('../service/SemaphoreService');
+const utils = require('../utils/writer.js');
+const Semaphore = require('../service/SemaphoreService');
 
-const error_code = {
-  condition_mismatch: "The conditional request failed",
-  key_not_exist: "semaphoreKey is not exist!!",
-  handle_mismatch: "semaphoreHandle isn't same",
-  Networking_Error: "NetworkingError"
-}
-
-const res_message = {
-  Bad_Request: {
-    "message": "Bad Request"
-  },
-  Invalid_ID_Supplied: {
-    "message": "Invalid ID Supplied"
-  },
-  Key_In_Used: {
-    "message": "lock in use"
-  },
-  Networking_Error: {
-    "message": "Internal Server Error..."
+function errorHandler({code}){
+  let response;
+  switch(code){
+    case "ConditionalCheckFailedException":
+      response = {code:409, body:{message:'Lock In Use'}}
+      break;
+    case "NetworkingError":
+      response = {code:500, body:{message:'Internal Server Error'}}
+      break;
+    case 'SemaphoreKeyNotExist':
+      response = {code: 404, body:{message:'Key Not Exist'}}
+      break;
+    case 'NoSeatAvailable':
+      response = {code: 409, body:{message:'No Seat Available'}}
+      break
+    case 'HandlerNotExist':
+      response = {code: 404, body:{message:'Handler Not Exist'}}
+      break;
+    default:
+      response = {code:400, body:{message:'Bad Request'}}
+      break;
   }
+  return response
 }
 
 
-module.exports.acquire = function acquire(req, res, next) {
-  var semaphoreKey = req.swagger.params['semaphoreKey'].value;
-  var semaphoreHandle = req.swagger.params['semaphoreHandle'].value;
-  Semaphore.acquire(semaphoreKey, semaphoreHandle)
+function acquireSeat(req, res, next) {
+  const semaphoreKey = req.swagger.params['semaphoreKey'].value;
+  const {ttl} = req.swagger.params['ttl'].value;
+  Semaphore.acquireSeat(semaphoreKey, ttl)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Bad_Request, 400);
+      console.error("Unable to acquire seat. Error JSON:", JSON.stringify(response, null, 2));
+       //如果找不到key
+      console.log(response)
+      if(response instanceof TypeError){
+        response.code = 'SemaphoreKeyNotExist'
+      }else if(response.code === 'ConditionalCheckFailedException'){
+        repsonde.code = 'NoSeatAvailable'
       }
+      const {code, body} = errorHandler(response)
+      utils.writeJson(res, body, code)
     });
 };
 
-module.exports.availablePermits = function availablePermits(req, res, next) {
-  var semaphoreKey = req.swagger.params['semaphoreKey'].value;
-  var semaphoreHandle = req.swagger.params['semaphoreHandle'].value;
-  Semaphore.availablePermits(semaphoreKey, semaphoreHandle)
+function querySemaphore(req, res, next) {
+  const semaphoreKey = req.swagger.params['semaphoreKey'].value;
+  Semaphore.querySemaphore(semaphoreKey, null)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Invalid_ID_Supplied, 400);
-      }
+      console.error("Unable to read semaphore. Error JSON:", JSON.stringify(response, null, 2));
+      const {code, body} = errorHandler({code:'SemaphoreKeyNotExist'})
+      utils.writeJson(res, body, code);
     });
 };
 
-module.exports.creatSemaphore = function creatSemaphore(req, res, next) {
-  var semaphoreKey = req.swagger.params['semaphoreKey'].value;
-  var capacity = req.swagger.params['capacity'].value;
+function creatSemaphore(req, res, next) {
+  const semaphoreKey = req.swagger.params['semaphoreKey'].value;
+  const capacity = req.swagger.params['seat'].value;
   Semaphore.creatSemaphore(semaphoreKey, capacity)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Key_In_Used, 409);
-      }
+      console.error("Unable to create semaphore. Error JSON:", JSON.stringify(response, null, 2));
+      const {code, body} = errorHandler(response)
+      utils.writeJson(res, body, code);
     });
 };
 
-module.exports.deleteSemaphore = function deleteSemaphore(req, res, next) {
-  var semaphoreKey = req.swagger.params['semaphoreKey'].value;
-  var semaphoreHandle = req.swagger.params['semaphoreHandle'].value;
-  Semaphore.deleteSemaphore(semaphoreKey, semaphoreHandle)
+function deleteSemaphore(req, res, next) {
+  const semaphoreKey = req.swagger.params['semaphoreKey'].value;
+  Semaphore.deleteSemaphore(semaphoreKey)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Invalid_ID_Supplied, 400);
+      //如果找不到key回傳200 
+      if(response instanceof TypeError){
+        utils.writeJson(res, null);
+        return
       }
+      console.log("Unable to delete semaphore. Someone In The Seat. Error JSON:", JSON.stringify(response, null, 2))
+      const {code, body} = errorHandler(response)
+      utils.writeJson(res, body, code);
     });
 };
 
-module.exports.extendttl = function extendttl(req, res, next) {
-  var semaphoreKey = req.swagger.params['semaphoreKey'].value;
-  var semaphoreHandle = req.swagger.params['semaphoreHandle'].value;
-  var ttl = req.swagger.params['ttl'].value;
+function extendttl(req, res, next) {
+  const semaphoreKey = req.swagger.params['semaphoreKey'].value;
+  const semaphoreHandle = req.swagger.params['semaphoreHandle'].value;
+  const {ttl} = req.swagger.params['ttl'].value;
   Semaphore.extendttl(semaphoreKey, semaphoreHandle, ttl)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Invalid_ID_Supplied, 400);
+      console.error("Unable to extend ttl . Error JSON:", JSON.stringify(response, null, 2));
+      if(response.code === 'ConditionalCheckFailedException'){
+        response.code = 'HandlerNotExist'
       }
+      const {code, body} = errorHandler(response)
+      utils.writeJson(res, body, code);
     });
 };
 
-module.exports.releases = function releases(req, res, next) {
-  var semaphoreKey = req.swagger.params['semaphoreKey'].value;
-  var semaphoreHandle = req.swagger.params['semaphoreHandle'].value;
-  Semaphore.releases(semaphoreKey, semaphoreHandle)
+function releasesSeat(req, res, next) {
+  const semaphoreKey = req.swagger.params['semaphoreKey'].value;
+  const semaphoreHandle = req.swagger.params['semaphoreHandle'].value;
+  Semaphore.releasesSeat(semaphoreKey, semaphoreHandle)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Bad_Request, 400);
+      console.error(`Unable to delete seat key:${semaphoreKey} handler:${semaphoreHandle}. Error JSON:`, JSON.stringify(response, null, 2));
+      if(response.code === 'NetworkingError'){
+        const {code, body} = errorHandler(response)
+        utils.writeJson(res, body, code);
+        return
       }
+      utils.writeJson(res, null)
     });
 };
+
+module.exports = {
+  acquireSeat,
+  querySemaphore,
+  creatSemaphore,
+  deleteSemaphore,
+  extendttl,
+  releasesSeat
+}
