@@ -191,8 +191,8 @@ paths:
           description: "successful operation"
           schema:
             $ref: "#/definitions/Mutex"
-        400:
-          description: "Invalid ID supplied"
+        404:
+          description: "MutextKey Not Exist"
       x-swagger-router-controller: "Mutex"
     post:
       tags:
@@ -215,7 +215,7 @@ paths:
         200:
           description: "successful operation"
           schema:
-            $ref: "#/definitions/Mutex"
+            $ref: "#/definitions/MutexHandler"
         409:
           description: "lock in use"
       x-swagger-router-controller: "Mutex"
@@ -243,10 +243,6 @@ paths:
       responses:
         200:
           description: "successful operation"
-          schema:
-            $ref: "#/definitions/Mutex"
-        400:
-          description: "Invalid ID Supplied"
       x-swagger-router-controller: "Mutex"
     patch:
       tags:
@@ -274,9 +270,9 @@ paths:
         200:
           description: "successful operation"
           schema:
-            $ref: "#/definitions/Mutex"
-        400:
-          description: "Invalid ID Supplied"
+            $ref: "#/definitions/MutexHandler"
+        409:
+          description: "MutextKey Or Handler Not Exist"
       x-swagger-router-controller: "Mutex"
 definitions:
   Semaphore:
@@ -324,6 +320,22 @@ definitions:
     required:
     - "expiry"
     - "id"
+    properties:
+      id:
+        type: "string"
+        pattern: "^[a-zA-Z0-9\\-_]+$"
+      expiry:
+        type: "integer"
+        format: "int64"
+    example:
+      id: "id"
+      expiry: 1532486984
+  MutexHandler:
+    type: "object"
+    required:
+    - "expiry"
+    - "id"
+    - "handle"
     properties:
       id:
         type: "string"
