@@ -1,14 +1,19 @@
-const dynamodb = require('../config/config.js').dynamodb
+const {
+    dynamodb
+} = require('../config/config.js')
 
 function createTable(payload) {
-    let options = Object.assign({ rcu: 10, wcu: 10 }, payload )
+    let options = Object.assign({
+        rcu: 10,
+        wcu: 10
+    }, payload)
 
     let params = {
         TableName: payload.tableName,
         KeySchema: [{
-            AttributeName: payload.hashKey,
-            KeyType: 'HASH'
-        }, //Partition key
+                AttributeName: payload.hashKey,
+                KeyType: 'HASH'
+            }, //Partition key
         ],
         AttributeDefinitions: [{
             AttributeName: options.hashKey,
@@ -25,7 +30,9 @@ function createTable(payload) {
 }
 
 function isDbCreated(payload) {
-    return dynamodb.describeTable({ TableName: payload.tableName })
+    return dynamodb.describeTable({
+            TableName: payload.tableName
+        })
         .promise()
         .then(() => true)
         .catch(err => {
@@ -43,11 +50,11 @@ function isDbCreated(payload) {
  * @param  payload object
  * @param  payload.tableName string
  */
-function ensureTable (payload) {
+function ensureTable(payload) {
     return isDbCreated(payload)
-        .then(isCreated => isCreated
-            ? payload
-            : createTable(payload).then(() => payload)
+        .then(isCreated => isCreated ?
+            payload :
+            createTable(payload).then(() => payload)
         )
 }
 
