@@ -16,18 +16,8 @@ function readItem(mutexKey) {
             "mutexKey": mutexKey
         },
         ConsistentRead: true
-    }).promise().then(data => {
-        console.log("GetItem succeeded:", JSON.stringify(data));
-        if (data["Item"] === undefined) {
-            throw new Error("mutexKey is not exist!!");
-        } else {
-            return data["Item"];
-        }
-    }).catch(err => {
-        console.error("Unable to read item. Error JSON:", JSON.stringify(err, null, 2))
-        throw new Error(err)
-    })
-};
+    }).promise()
+}
 
 function createItem(mutexKey, mutexHandle, expiry) {
     return docClient.put({
@@ -44,11 +34,8 @@ function createItem(mutexKey, mutexHandle, expiry) {
         ExpressionAttributeValues: {
             ":expiry": Date.now() / 1000
         }
-    }).promise().then(data => console.log("Added item:", JSON.stringify(data, null, 2)) || data).catch(err => {
-        console.error("Unable to add item. Error JSON:", JSON.stringify(err, null, 2))
-        throw new Error(err)
-    })
-};
+    }).promise()
+}
 
 function deleteItem(mutexKey, mutexHandle) {
     return docClient.delete({
@@ -63,14 +50,8 @@ function deleteItem(mutexKey, mutexHandle) {
         ExpressionAttributeValues: {
             ":m": mutexHandle
         }
-    }).promise().then(data => console.log("DeleteItem succeeded:", JSON.stringify(data, null, 2)) || {
-        statusCode: 200,
-        msg: data
-    }).catch(err => {
-        console.error("Unable to delete item. Error JSON:", JSON.stringify(err, null, 2))
-        throw new Error(err)
-    })
-};
+    }).promise()
+}
 
 function updateItemttl(mutexKey, mutexHandle, ttl) {
     return docClient.update({
@@ -89,10 +70,7 @@ function updateItemttl(mutexKey, mutexHandle, ttl) {
             ":m": mutexHandle
         },
         ReturnValues: "ALL_NEW"
-    }).promise().then(data => console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2)) || data["Attributes"]).catch(err => {
-        console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2))
-        throw new Error(err)
-    })
+    }).promise()
 }
 
 module.exports = {

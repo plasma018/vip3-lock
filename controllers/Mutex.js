@@ -1,91 +1,100 @@
-'use strict';
+const utils = require('../utils/writer.js');
+const Mutex = require('../service/MutexService');
 
-var utils = require('../utils/writer.js');
-var Mutex = require('../service/MutexService');
-
-const error_code = {
-  condition_mismatch: "The conditional request failed",
-  key_not_exist: "mutexKey is not exist!!",
-  Networking_Error: "NetworkingError"
-}
-
-const res_message = {
-  Bad_Request: {
-    "message": "Bad Request"
-  },
-  Invalid_ID_Supplied: {
-    "message": "Invalid ID Supplied"
-  },
-  Key_In_Used: {
-    "message": "lock in use"
-  },
-  Networking_Error: {
-    "message": "Internal Server Error..."
+function errorHandler({code}){
+  let response;
+  switch(code){
+    case "ConditionalCheckFailedException":
+      response = {code:409, body:{message:'Lock In Use'}}
+      break;
+    case "NetworkingError":
+      response = {code:500, body:{message:'Internal Server Error'}}
+      break;
+    case 'SemaphoreKeyNotExist':
+      response = {code: 404, body:{message:'Key Not Exist'}}
+      break;
+    case 'NoSeatAvailable':
+      response = {code: 409, body:{message:'No Seat Available'}}
+      break
+    case 'MutextKeyNotExist':
+      response = {code: 404, body:{message:'MutextKey Or Handler Not Exist'}}
+      break;
+    default:
+      response = {code:400, body:{message:'Bad Request'}}
+      break;
   }
+  return response
 }
 
-module.exports.extendMutex = function extendMutex(req, res, next) {
-  var mutexKey = req.swagger.params['mutexKey'].value;
-  var mutexHandle = req.swagger.params['mutexHandle'].value;
-  var mutex = req.swagger.params['mutex'].value;
-  Mutex.extendMutex(mutexKey, mutexHandle, mutex)
+function extendMutex(req, res, next) {
+  const mutexKey = req.swagger.params['mutexKey'].value;
+  const mutexHandle = req.swagger.params['mutexHandle'].value;
+  const {ttl} = req.swagger.params['mutex'].value;
+  Mutex.extendMutex(mutexKey, mutexHandle, ttl)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Invalid_ID_Supplied, 400);
+      console.error(`Unable Extend Mutex:${mutexKey} handler:${mutexHandle} ttl:${ttl} `, JSON.stringify(response, null, 2))
+      if(response.code === 'ConditionalCheckFailedException'){
+        response.code = 'MutextKeyNotExist'
       }
+      const {code, body} = errorHandler(response)
+      utils.writeJson(res, body, code);
     });
 };
 
-module.exports.lockMutex = function lockMutex(req, res, next) {
-  var mutexKey = req.swagger.params['mutexKey'].value;
-  var ttl = req.swagger.params['ttl'].value;
+function lockMutex(req, res, next) {
+  const mutexKey = req.swagger.params['mutexKey'].value;
+  const {ttl} = req.swagger.params['ttl'].value;
   Mutex.lockMutex(mutexKey, ttl)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.message == error_code.condition_mismatch) {
-        utils.writeJson(res, res_message.Key_In_Used, 409);
-      } else if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Bad_Request, 400);
-      }
+      console.error(`Unable Lock Mutex: ${mutexKey} ttl: ${ttl} Error JSON:`, JSON.stringify(response, null, 2))
+      const {code, body} = errorHandler(response)
+      utils.writeJson(res, body, code);
     });
 };
 
-module.exports.queryMutex = function queryMutex(req, res, next) {
-  var mutexKey = req.swagger.params['mutexKey'].value;
+function queryMutex(req, res, next) {
+  const mutexKey = req.swagger.params['mutexKey'].value;
   Mutex.queryMutex(mutexKey)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Invalid_ID_Supplied, 400);
+      console.error(`Unable Query Mutex:${mutexKey} Error JSON:`, JSON.stringify(response, null, 2));
+      if(response instanceof TypeError){
+        response.code = 'MutextKeyNotExist'
       }
+      const {code, body} = errorHandler(response)
+      utils.writeJson(res, body, code);
     });
 };
 
-module.exports.unlockMutex = function unlockMutex(req, res, next) {
-  var mutexKey = req.swagger.params['mutexKey'].value;
-  var mutexHandle = req.swagger.params['mutexHandle'].value;
+function unlockMutex(req, res, next) {
+  const mutexKey = req.swagger.params['mutexKey'].value;
+  const mutexHandle = req.swagger.params['mutexHandle'].value;
   Mutex.unlockMutex(mutexKey, mutexHandle)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
-      if (response.code === error_code.Networking_Error) {
-        utils.writeJson(res, res_message.Networking_Error, 500);
-      } else {
-        utils.writeJson(res, res_message.Invalid_ID_Supplied, 400);
+      console.error(`Unable Delete Mutex:${mutexKey} Handler:${mutexHandle} Error JSON:`, JSON.stringify(response, null, 2))
+      if(response.code === 'ConditionalCheckFailedException'){
+        utils.writeJson(res, null);
+        return
       }
-    });
-};
+      const {code, body} = errorHandler(response)
+      utils.writeJson(res, body, code);
+    })
+}
+
+module.exports = {
+  extendMutex,
+  lockMutex,
+  queryMutex,
+  unlockMutex
+}
