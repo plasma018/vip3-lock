@@ -13,11 +13,11 @@ schemes:
 - "http"
 paths:
   /semaphore/{semaphoreKey}:
-    put:
+    post:
       tags:
       - "Semaphore"
       summary: "Create a semaphore."
-      description: "Creates a Semaphore with the given number of permits"
+      description: "Creates a Semaphore with the given number of seats"
       operationId: "creatSemaphore"
       produces:
       - "application/json"
@@ -29,11 +29,11 @@ paths:
         type: "string"
         pattern: "^[a-zA-Z0-9\\-_]+$"
       - in: "body"
-        name: "capacity"
-        description: "number of permits"
+        name: "seat"
+        description: "number of seats"
         required: false
         schema:
-          $ref: "#/definitions/capacity"
+          $ref: "#/definitions/seat"
       responses:
         200:
           description: "semaphore status"
@@ -42,13 +42,12 @@ paths:
         409:
           description: "lock in use"
       x-swagger-router-controller: "Semaphore"
-  /semaphore/{semaphoreKey}/{semaphoreHandle}:
     get:
       tags:
       - "Semaphore"
       summary: "Query semaphore status"
       description: "Returns the current status in this semaphore."
-      operationId: "availablePermits"
+      operationId: "querySemaphore"
       produces:
       - "application/json"
       parameters:
@@ -58,26 +57,70 @@ paths:
         required: true
         type: "string"
         pattern: "^[a-zA-Z0-9\\-_]+$"
-      - name: "semaphoreHandle"
-        in: "path"
-        description: "check semaphore owner"
-        required: true
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
       responses:
         200:
           description: "semaphore status"
           schema:
             $ref: "#/definitions/Semaphore"
-        400:
-          description: "Invalid ID supplied"
+        404:
+          description: "semaphore key not exist"
+      x-swagger-router-controller: "Semaphore" 
+    delete:
+      tags:
+      - "Semaphore" 
+      summary: "Delete semaphore"
+      description: "Delete semaphore when no one use"
+      operationId: "deleteSemaphore"
+      parameters:
+      - name: "semaphoreKey"
+        in: "path"
+        description: "semaphore identifier"
+        required: true
+        type: "string"
+        pattern: "^[a-zA-Z0-9\\-_]+$"
+      responses:
+        200:
+          description: "OK"
+        409:
+          description: "lock in use"
       x-swagger-router-controller: "Semaphore"
+  /semaphore/{semaphoreKey}/seat:
+    post:
+      tags:
+      - "Semaphore"
+      summary: "Acquires a seat"
+      description: "Acquires a seat from this semaphore" 
+      operationId: "acquireSeat"
+      parameters:
+      - name: "semaphoreKey"
+        in: "path"
+        description: "semaphore identifier"
+        required: true
+        type: "string"
+        pattern: "^[a-zA-Z0-9\\-_]+$"
+      - in: "body"
+        name: "ttl"
+        description: "update ttl"
+        required: false
+        schema:
+          $ref: "#/definitions/ttl"
+      responses:
+        200:
+          description: "semaphore status"
+          schema:
+            $ref: "#/definitions/SemaphoreHandler"
+        409:
+          description: "No Seat Available"
+        404:
+          description: Semaphore Key Not Exist
+      x-swagger-router-controller: "Semaphore"
+  /semaphore/{semaphoreKey}/seat/{semaphoreHandle}:
     delete:
       tags:
       - "Semaphore"
-      summary: "delete semaphore"
-      description: "delete semaphore"
-      operationId: "deleteSemaphore"
+      summary: "Releases a seat"
+      description: "releases a seat from this semaphore"
+      operationId: "releasesSeat"
       parameters:
       - name: "semaphoreKey"
         in: "path"
@@ -87,15 +130,13 @@ paths:
         pattern: "^[a-zA-Z0-9\\-_]+$"
       - name: "semaphoreHandle"
         in: "path"
-        description: "check semaphore owner"
+        description: "check seat owner"
         required: true
         type: "string"
         pattern: "^[a-zA-Z0-9\\-_]+$"
       responses:
         200:
           description: "OK"
-        400:
-          description: "Invalid ID supplied"
       x-swagger-router-controller: "Semaphore"
     patch:
       tags:
@@ -112,7 +153,7 @@ paths:
         pattern: "^[a-zA-Z0-9\\-_]+$"
       - name: "semaphoreHandle"
         in: "path"
-        description: "check semaphore owner"
+        description: "check seat owner"
         required: true
         type: "string"
         pattern: "^[a-zA-Z0-9\\-_]+$"
@@ -127,70 +168,8 @@ paths:
           description: "semaphore status"
           schema:
             $ref: "#/definitions/Semaphore"
-        400:
-          description: "Invalid ID supplied"
-      x-swagger-router-controller: "Semaphore"
-  /semaphore/acquires/{semaphoreKey}/{semaphoreHandle}/:
-    patch:
-      tags:
-      - "Semaphore"
-      summary: "Acquires a permit from this semaphore"
-      description: "Acquires a permit, reducing the number of available permits by\
-        \ one"
-      operationId: "acquire"
-      produces:
-      - "application/json"
-      parameters:
-      - name: "semaphoreKey"
-        in: "path"
-        description: "semaphore identifier"
-        required: true
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
-      - name: "semaphoreHandle"
-        in: "path"
-        description: "check semaphore owner"
-        required: true
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
-      responses:
-        200:
-          description: "semaphore status"
-          schema:
-            $ref: "#/definitions/Semaphore"
-        400:
-          description: "Bad Request"
-      x-swagger-router-controller: "Semaphore"
-  /semaphore/releases/{semaphoreKey}/{semaphoreHandle}/:
-    patch:
-      tags:
-      - "Semaphore"
-      summary: "releases a permit, returning it to the semaphore."
-      description: "releases a permit, increasing the number of available permits\
-        \ by one"
-      operationId: "releases"
-      produces:
-      - "application/json"
-      parameters:
-      - name: "semaphoreKey"
-        in: "path"
-        description: "semaphore identifier"
-        required: true
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
-      - name: "semaphoreHandle"
-        in: "path"
-        description: "check semaphore owner"
-        required: true
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
-      responses:
-        200:
-          description: "semaphore status"
-          schema:
-            $ref: "#/definitions/Semaphore"
-        400:
-          description: "Bad Request"
+        404:
+          description: "Handler Not Exist"
       x-swagger-router-controller: "Semaphore"
   /mutex/{mutexKey}:
     get:
@@ -215,7 +194,7 @@ paths:
         400:
           description: "Invalid ID supplied"
       x-swagger-router-controller: "Mutex"
-    put:
+    post:
       tags:
       - "Mutex"
       summary: "Acquires the lock"
@@ -303,39 +282,48 @@ definitions:
   Semaphore:
     type: "object"
     required:
-    - "capacity"
-    - "count"
-    - "expiry"
-    - "handle"
+    - "seat"
+    - "occupied"
     - "id"
     properties:
       id:
         type: "string"
         pattern: "^[a-zA-Z0-9\\-_]+$"
-      handle:
-        type: "string"
-        pattern: "^[a-zA-Z0-9\\-_]+$"
-      capacity:
+      seat:
         type: "integer"
         format: "int64"
-      count:
-        type: "integer"
-        format: "int64"
-      expiry:
+      occupied:
         type: "integer"
         format: "int64"
     example:
-      handle: "handle"
       id: "id"
+      seat: 10
+      occupied: 8
+  SemaphoreHandler:
+    type: "object"
+    required:
+    - "id"
+    - "handler"
+    - "expired"
+    properties:
+      id:
+        type: "string"
+        pattern: "^[a-zA-Z0-9\\-_]+$" 
+      handler:
+        type: "string"
+        pattern: "^[a-zA-Z0-9\\-_]+$"
+      expired:
+        type: "integer"
+        format: "int64"
+    example:
+      id: "id"
+      handler: "uuid"
       expiry: 1532486984
-      count: 0
-      capacity: 10
   Mutex:
     type: "object"
     required:
     - "expiry"
     - "id"
-    - "locked"
     properties:
       id:
         type: "string"
@@ -343,9 +331,6 @@ definitions:
       handle:
         type: "string"
         pattern: "^[a-zA-Z0-9\\-_]+$"
-      locked:
-        type: "boolean"
-        default: false
       expiry:
         type: "integer"
         format: "int64"
@@ -353,7 +338,6 @@ definitions:
       handle: "handle"
       id: "id"
       expiry: 1532486984
-      locked: false
   ttl:
     type: "object"
     properties:
@@ -361,10 +345,10 @@ definitions:
         type: "integer"
         minimum: 1
         maximum: 3600
-  capacity:
+  seat:
     type: "object"
     properties:
-      capacity:
+      seat:
         type: "integer"
         minimum: 1
         maximum: 10
