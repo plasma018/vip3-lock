@@ -10,18 +10,6 @@ require('./helper_ddb').ensureTable({
 })
 
 /**
- * find oldest and latest handler
- * @param handlers list
- */
-function getHandler(handlers) {
-    let array = Object.entries(handlers).sort((item1, item2) => item1[1] > item2[1])
-    return {
-        oldest: array[0],
-        latest: array[array.length - 1]
-    }
-}
-
-/**
  * Create Semaphore 
  * 
  * @param  semaphoreKey string
@@ -167,14 +155,14 @@ function acquireSeat(semaphoreKey, semaphoreHandle, expiry) {
 
         // 檢查是否有handler過期
         let now = Date.now() / 1000
-        let oldest = Object.entries(handlers).reduce((obj1, obj2) => {
+        let [old_id, old_time] = Object.entries(handlers).reduce((obj1, obj2) => {
             if(obj1[1] > obj2[1]){
                 return obj2
             }
             return  obj1
         })
         
-        if (now < oldest[1]) {
+        if (now < old_time) {
             let error = new Error('no seat available')
             error.code = "NoSeatAvailable"
             throw error
@@ -189,7 +177,7 @@ function acquireSeat(semaphoreKey, semaphoreHandle, expiry) {
             ConditionExpression: "handlers.#oid < :now",
             ExpressionAttributeNames: {
                 "#id": semaphoreHandle,
-                "#oid": oldest[0],
+                "#oid": old_id,
                 "#ver": "version"
             },
             ExpressionAttributeValues: {
