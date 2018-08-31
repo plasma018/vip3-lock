@@ -3,6 +3,8 @@ const uuid = require('uuid')
 
 const DEFAULT_SEAT = 5
 const DEFAULT_TTL = 60
+const DEFAULT_TTL_UPPER = 3600
+const DEFAULT_TTL_LOWER = 1
 
 /**
  * Acquires a permit from this semaphore
@@ -15,7 +17,7 @@ const DEFAULT_TTL = 60
 function acquireSeat(semaphoreKey, ttl) {
   const semaphoreHandle = uuid.v4();
   let time = DEFAULT_TTL
-  if (parseInt(ttl, 10) === ttl) {
+  if (parseInt(ttl, 10) === ttl || (ttl < DEFAULT_TTL_LOWER || ttl > DEFAULT_TTL_UPPER)) {
     time = ttl
   }
   const expiry = Date.now() / 1000 + time;
@@ -101,7 +103,7 @@ function deleteSemaphore(semaphoreKey) {
  * returns Semaphore
  **/
 function extendttl(semaphoreKey, semaphoreHandle, ttl) {
-  if (parseInt(ttl, 10) != ttl || (ttl < 1 || ttl > 3600)) {
+  if (parseInt(ttl, 10) != ttl || (ttl < DEFAULT_TTL_LOWER || ttl > DEFAULT_TTL_UPPER)) {
     throw new Error('ttl error')
   }
   return lock_db.updateItemttl(semaphoreKey, semaphoreHandle, ttl).then(({

@@ -37,7 +37,7 @@ function extendMutex(mutexKey, mutexHandle, ttl) {
 function lockMutex(mutexKey, ttl) {
   const mutexHandle = uuid.v4();
   let time = DEFAULT_TTL
-  if (parseInt(ttl, 10) === ttl) {
+  if (parseInt(ttl, 10) === ttl || (ttl < DEFAULT_TTL_LOWER || ttl > DEFAULT_TTL_UPPER)) {
     time = ttl
   }
   const expiry = Date.now() / 1000 + time;
