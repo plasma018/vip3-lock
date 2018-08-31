@@ -1,7 +1,7 @@
 {
-  "name": "semaphore-api",
+  "name": "vip3-lock",
   "version": "1.0.0",
-  "description": "A semaphore API for Distributed locks",
+  "description": "Semaphore and Mutex API for Distributed Locks",
   "main": "index.js",
   "scripts": {
     "prestart": "npm install",
@@ -19,7 +19,7 @@
     "connect": "^3.2.0",
     "js-yaml": "^3.3.0",
     "supertest": "^3.1.0",
-    "swagger-tools": "0.10.1",
+    "swagger-tools": "^0.10.4",
     "uuid": "^3.3.2"
   },
   "devDependencies": {
