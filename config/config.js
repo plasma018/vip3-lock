@@ -1,25 +1,23 @@
-const AWS = require("aws-sdk");
-const isDev = process.env.NODE_ENV !== 'production';
-const config = {
-    aws_local_config: {
-        region: 'local',
-        endpoint: 'http://localhost:8000'
-    },
-    aws_remote_config: {
-        region: "us-west-2",
-        accessKeyId: "AKIAJZYHLQK5MGEC5FHQ",
-        accessKey: "EGqJ1mO+meyGMBTVieNbeGIqsqcJxCpeGjnd7qjg"
-    }
-};
+require('dotenv').config()
+const AWS = require("aws-sdk")
 
-if (isDev) {
-    AWS.config.update(config.aws_local_config);
-} else {
-    AWS.config.update(config.aws_remote_config);
+const config = {
+    'dev': {
+        endpoint: process.env.DEV_ENDPOINT,
+        region: process.env.REGION
+    },
+    'production': {
+        endpoint: process.env.ENDPOINT,
+        region: process.env.REGION,
+        accessKeyId: process.env.ACCESS_KEY_ID,
+        accessKey: process.env.ACCESS_KEY
+    }
 }
 
-const docClient = new AWS.DynamoDB.DocumentClient();
-const dynamodb = new AWS.DynamoDB();
+const dynamodb = new AWS.DynamoDB(config[process.env.NODE_ENV])
+const docClient = new AWS.DynamoDB.DocumentClient(config[process.env.NODE_ENV])
 
-module.exports.docClient = docClient
-module.exports.dynamodb = dynamodb
+module.exports = {
+    docClient,
+    dynamodb
+}
