@@ -1,52 +1,25 @@
-'use strict';
-
-const utils = require('../utils/writer.js');
+const utils = require('../utils/response.js');
 const Semaphore = require('../service/SemaphoreService');
-
-function errorHandler({code}){
-  let response;
-  switch(code){
-    case "ConditionalCheckFailedException":
-      response = {code:409, body:{message:'Lock In Use'}}
-      break;
-    case "NetworkingError":
-      response = {code:500, body:{message:'Internal Server Error'}}
-      break;
-    case 'SemaphoreKeyNotExist':
-      response = {code: 404, body:{message:'Key Not Exist'}}
-      break;
-    case 'NoSeatAvailable':
-      response = {code: 409, body:{message:'No Seat Available'}}
-      break
-    case 'HandlerNotExist':
-      response = {code: 404, body:{message:'Handler Not Exist'}}
-      break;
-    default:
-      response = {code:400, body:{message:'Bad Request'}}
-      break;
-  }
-  return response
-}
 
 
 function acquireSeat(req, res, next) {
   const semaphoreKey = req.swagger.params['semaphoreKey'].value;
-  const {ttl} = req.swagger.params['ttl'].value;
+  const {
+    ttl
+  } = req.swagger.params['ttl'].value;
   Semaphore.acquireSeat(semaphoreKey, ttl)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
       console.error("Unable to acquire seat. Error JSON:", JSON.stringify(response, null, 2));
-       //如果找不到key
-      console.log(response)
-      if(response instanceof TypeError){
+      //如果找不到key
+      if (response instanceof TypeError) {
         response.code = 'SemaphoreKeyNotExist'
-      }else if(response.code === 'ConditionalCheckFailedException'){
+      } else if (response.code === 'ConditionalCheckFailedException') {
         repsonde.code = 'NoSeatAvailable'
       }
-      const {code, body} = errorHandler(response)
-      utils.writeJson(res, body, code)
+      utils.writeErrJson(res, response)
     });
 };
 
@@ -58,8 +31,10 @@ function querySemaphore(req, res, next) {
     })
     .catch(function (response) {
       console.error("Unable to read semaphore. Error JSON:", JSON.stringify(response, null, 2));
-      const {code, body} = errorHandler({code:'SemaphoreKeyNotExist'})
-      utils.writeJson(res, body, code);
+      if (response instanceof TypeError) {
+        response.code = 'SemaphoreKeyNotExist'
+      }
+      utils.writeErrJson(res, response)
     });
 };
 
@@ -72,8 +47,7 @@ function creatSemaphore(req, res, next) {
     })
     .catch(function (response) {
       console.error("Unable to create semaphore. Error JSON:", JSON.stringify(response, null, 2));
-      const {code, body} = errorHandler(response)
-      utils.writeJson(res, body, code);
+      utils.writeErrJson(res, response)
     });
 };
 
@@ -85,31 +59,31 @@ function deleteSemaphore(req, res, next) {
     })
     .catch(function (response) {
       //如果找不到key回傳200 
-      if(response instanceof TypeError){
+      if (response instanceof TypeError) {
         utils.writeJson(res, null);
         return
       }
       console.log("Unable to delete semaphore. Someone In The Seat. Error JSON:", JSON.stringify(response, null, 2))
-      const {code, body} = errorHandler(response)
-      utils.writeJson(res, body, code);
+      utils.writeErrJson(res, response)
     });
 };
 
 function extendttl(req, res, next) {
   const semaphoreKey = req.swagger.params['semaphoreKey'].value;
   const semaphoreHandle = req.swagger.params['semaphoreHandle'].value;
-  const {ttl} = req.swagger.params['ttl'].value;
+  const {
+    ttl
+  } = req.swagger.params['ttl'].value;
   Semaphore.extendttl(semaphoreKey, semaphoreHandle, ttl)
     .then(function (response) {
       utils.writeJson(res, response);
     })
     .catch(function (response) {
       console.error("Unable to extend ttl . Error JSON:", JSON.stringify(response, null, 2));
-      if(response.code === 'ConditionalCheckFailedException'){
+      if (response.code === 'ConditionalCheckFailedException') {
         response.code = 'HandlerNotExist'
       }
-      const {code, body} = errorHandler(response)
-      utils.writeJson(res, body, code);
+      utils.writeErrJson(res, response)
     });
 };
 
@@ -122,9 +96,8 @@ function releasesSeat(req, res, next) {
     })
     .catch(function (response) {
       console.error(`Unable to delete seat key:${semaphoreKey} handler:${semaphoreHandle}. Error JSON:`, JSON.stringify(response, null, 2));
-      if(response.code === 'NetworkingError'){
-        const {code, body} = errorHandler(response)
-        utils.writeJson(res, body, code);
+      if (response.code === 'NetworkingError') {
+        utils.writeErrJson(res, response)
         return
       }
       utils.writeJson(res, null)
