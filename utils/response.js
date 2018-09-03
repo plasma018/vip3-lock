@@ -21,6 +21,9 @@ function errorHandler({code}){
       case 'MutextKeyNotExist':
         response = {code: 404, body:{message:'MutextKey Or Handler Not Exist'}}
         break;
+      case 'TTLError':
+        response = {code: 400,body:{message:'TTL Format Error Or Not Exist'}}
+        break;
       default:
         response = {code:400, body:{message:'Bad Request'}}
         break;

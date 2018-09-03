@@ -104,7 +104,9 @@ function deleteSemaphore(semaphoreKey) {
  **/
 function extendttl(semaphoreKey, semaphoreHandle, ttl) {
   if (parseInt(ttl, 10) != ttl || (ttl < DEFAULT_TTL_LOWER || ttl > DEFAULT_TTL_UPPER)) {
-    throw new Error('ttl error')
+    let error =  new Error('ttl error')
+    error.code = 'TTLError'
+    return Promise.reject(error)
   }
   return lock_db.updateItemttl(semaphoreKey, semaphoreHandle, ttl).then(({
     Attributes: {

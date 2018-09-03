@@ -14,7 +14,9 @@ const DEFAULT_TTL_LOWER = 1
  **/
 function extendMutex(mutexKey, mutexHandle, ttl) {
   if (parseInt(ttl, 10) != ttl || (ttl < DEFAULT_TTL_LOWER || ttl > DEFAULT_TTL_UPPER)) {
-    throw new Error('ttl error')
+    let error =  new Error('ttl error')
+    error.code = 'TTLError'
+    return Promise.reject(error)
   }
   return lock_db.updateItemttl(mutexKey, mutexHandle, ttl).then(({Attributes:data}) => {
     console.log(`Extend Mutex ttl:${ttl} `, JSON.stringify(data, null, 2))
