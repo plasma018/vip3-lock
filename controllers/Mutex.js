@@ -6,7 +6,6 @@ function extendMutex(req, res, next) {
   const mutexKey = req.swagger.params['mutexKey'].value;
   const mutexHandle = req.swagger.params['mutexHandle'].value;
   const {ttl} = req.swagger.params['mutex'].value;
-  console.log(req.swagger.params)
   Mutex.extendMutex(mutexKey, mutexHandle, ttl)
     .then(function (response) {
       utils.writeJson(res, response);
