@@ -9,8 +9,10 @@ const config = {
     'production': {
         endpoint: process.env.ENDPOINT,
         region: process.env.REGION,
-        accessKeyId: process.env.ACCESS_KEY_ID,
-        accessKey: process.env.ACCESS_KEY
+        credentials: new AWS.Credentials({
+            accessKeyId: process.env.ACCESS_KEY_ID,
+            secretAccessKey: process.env.ACCESS_KEY
+        })
     }
 }
 
