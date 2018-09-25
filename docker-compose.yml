@@ -1,0 +1,15 @@
+version: '3'
+services:
+  vip3-lock:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    ports:
+      - '8080:8080'
+    environment:
+      - ENDPOINT=https://dynamodb.ap-northeast-1.amazonaws.com
+      - DEV_ENDPOINT=http://localhost:8000
+      - REGION=ap-northeast-1
+      - NODE_ENV=production
+      - ACCESS_KEY_ID=
+      - ACCESS_KEY=
