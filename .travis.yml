@@ -1,0 +1,10 @@
+sudo: required
+
+services:
+  - docker
+
+before_install:
+  - docker build -t plasma018/vip3-lock .
+
+script:
+  - docker run plasma018/vip3-lock npm run test
