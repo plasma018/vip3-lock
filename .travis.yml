@@ -7,4 +7,4 @@ before_install:
   - docker build -t plasma018/vip3-lock .
 
 script:
-  - docker run -e "REGION=ap-northeast-1" -e "ENDPOINT=https://dynamodb.ap-northeast-1.amazonaws.com" -e "NODE_ENV=production" -e "ACCESS_KEY_ID=$ACCESS_KEY_ID" -e "ACCESS_KEY=$ACCESS_KEY" plasma018/vip3-lock npm run test
+  - docker run -e REGION=ap-northeast-1 -e ENDPOINT=https://dynamodb.ap-northeast-1.amazonaws.com -e NODE_ENV=production -e ACCESS_KEY_ID=$ACCESS_KEY_ID -e ACCESS_KEY=$ACCESS_KEY plasma018/vip3-lock npm run test
