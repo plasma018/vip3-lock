@@ -11,4 +11,6 @@ script:
   - docker exec $ID npm install mocha -g
   - docker exec $ID npm install supertest
   - docker exec $ID npm test
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker push plasma018/vip3-lock
 
