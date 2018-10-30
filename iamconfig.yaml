@@ -48,8 +48,9 @@ Resources:
             - "sts:AssumeRole"
       Path: /
       Policies:
-        - PolicyName: ECSTaskExecutionRolePolicy
+        - PolicyName: Vip3DynamodbRole
           PolicyDocument:
+            Version: "2012-10-17"
             Statement:
             - Effect: Allow
               Action:
